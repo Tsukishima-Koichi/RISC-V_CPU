@@ -1,23 +1,4 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 2024/04/08 12:42:16
-// Design Name: 
-// Module Name: PC
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
 module PC#(
     parameter   DATAWIDTH   = 32              ,
@@ -29,15 +10,11 @@ module PC#(
     output logic [DATAWIDTH - 1:0] pc_out   
 );
     logic [DATAWIDTH - 1:0] reg_pc;
-    logic rst_delay;
 
+    // 彻底删除 rst_delay，精准响应复位
     always_ff @(posedge clk) begin
-        rst_delay <= rst;
-    end
-
-    always_ff @(posedge clk, posedge rst) begin
-        if (rst | rst_delay) reg_pc <= RESET_VAL;
-        else reg_pc <= npc;
+        if (rst) reg_pc <= RESET_VAL;
+        else     reg_pc <= npc;
     end 
 
     assign pc_out = reg_pc;

@@ -23,6 +23,7 @@ module perip_bridge(
     input  logic         clk				,
     input  logic         cnt_clk			,
     input  logic         rst                ,
+    input  logic         cnt_rst            ,
 
     input  logic [31:0]  perip_addr			,
     input  logic [31:0]  perip_wdata		,
@@ -44,14 +45,21 @@ module perip_bridge(
     localparam SEG_ADDR  = 32'h8020_0020;  // seg
     localparam LED_ADDR  = 32'h8020_0040;  // led[31:0]
     localparam CNT_ADDR  = 32'h8020_0050;  // counter
+    localparam CNT_START_CMD = 32'h8000_0000;
+    localparam CNT_STOP_CMD  = 32'hFFFF_FFFF;
 
     logic [31:0] LED;
     logic [31:0] seg_wdata, cnt_rdata, mmio_rdata, dram_rdata;
     logic [39:0] seg_output;
+    logic cnt_enable_cfg;
 
     // write process
     always_ff @(posedge clk) begin
-        if (perip_wen) begin
+        if (rst) begin
+            LED            <= 32'd0;
+            seg_wdata      <= 32'd0;
+            cnt_enable_cfg <= 1'b0;
+        end else if (perip_wen) begin
             case (perip_addr)
                 LED_ADDR: begin
                     if (perip_mask[0]) LED[ 7: 0] <= perip_wdata[ 7: 0];
@@ -64,6 +72,13 @@ module perip_bridge(
                     if (perip_mask[1]) seg_wdata[15: 8] <= perip_wdata[15: 8];
                     if (perip_mask[2]) seg_wdata[23:16] <= perip_wdata[23:16];
                     if (perip_mask[3]) seg_wdata[31:24] <= perip_wdata[31:24];
+                end
+                CNT_ADDR: begin
+                    if (perip_wdata == CNT_START_CMD) begin
+                        cnt_enable_cfg <= 1'b1;
+                    end else if (perip_wdata == CNT_STOP_CMD) begin
+                        cnt_enable_cfg <= 1'b0;
+                    end
                 end
             endcase
         end
@@ -114,10 +129,11 @@ module perip_bridge(
 
     // counter rw
     counter counter_inst (
-        .clk				(cnt_clk),
-        .rst                (rst),
-        .perip_wdata		(perip_wdata),
-        .cnt_wen 			(perip_wen & (perip_addr == CNT_ADDR)),
+        .cpu_clk            (clk),
+        .cpu_rst            (rst),
+        .cnt_clk            (cnt_clk),
+        .cnt_rst            (cnt_rst),
+        .cnt_enable_cpu     (cnt_enable_cfg),
         .perip_rdata		(cnt_rdata)
     );
 

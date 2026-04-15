@@ -31,7 +31,7 @@ module myCPU (
     
     // 3. ALU 操作数与结果 (ALU Data)
     logic [31:0] alu_op1, alu_op2, alu_res;   // 规范：alu_a/b -> op1/op2
-    logic [ 4:0] alu_ctrl;
+    logic [ 3:0] alu_ctrl;
     
     // 4. 控制信号 (Control Signals)
     logic        IsBranch, RegWen, MemWen;  
@@ -109,7 +109,7 @@ module myCPU (
     // CSR 与 异常处理
     // ==========================================
     logic actual_csr_wen;
-    assign actual_csr_wen = CsrWen && !((CsrOp != 2'b00) && (inst[19:15] == 5'b0));
+    assign actual_csr_wen = CsrWen && !((CsrOp == 2'b10 || CsrOp == 2'b11) && (inst[19:15] == 5'b0));
     assign csr_wdata = CsrImmSel ? {27'b0, inst[19:15]} : rs1_data;
 
     CSR #(DATAWIDTH) csr_inst (

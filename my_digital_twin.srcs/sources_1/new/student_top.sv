@@ -27,8 +27,9 @@ module student_top#(
     parameter                           P_KEY_CNT           = 8
 ) (
     input                                       w_cpu_clk     ,
-    input                                       w_clk_50Mhz   ,
-    input                                       w_clk_rst     ,
+    input                                       w_cpu_rst     ,
+    input                                       w_cnt_clk     ,
+    input                                       w_cnt_rst     ,
     input  [P_KEY_CNT - 1:0]                    virtual_key   ,
     input  [P_SW_CNT  - 1:0]                    virtual_sw    ,
 
@@ -50,7 +51,7 @@ module student_top#(
     assign inst_addr = pc[13:2];
 
     myCPU Core_cpu (
-        .cpu_rst            (w_clk_rst),
+        .cpu_rst            (w_cpu_rst),
         .cpu_clk            (w_cpu_clk),
 
         // Interface to IROM
@@ -72,8 +73,10 @@ module student_top#(
     
     perip_bridge bridge_inst (
         .clk				(w_cpu_clk),
-        .cnt_clk            (w_clk_50Mhz),
-        .rst                (w_clk_rst),
+        .rst                (w_cpu_rst),
+        .cnt_clk            (w_cnt_clk),
+        .cnt_rst            (w_cnt_rst),
+        
         .perip_addr			(perip_addr),
         .perip_wdata		(perip_wdata),
         .perip_wen			(perip_wen),
