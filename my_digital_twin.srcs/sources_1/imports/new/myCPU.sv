@@ -63,7 +63,7 @@ module myCPU (
     assign irom_addr = if_pc;
     assign if_inst   = irom_data;
 
-    // 🌟 拦截 PC 的更新：如果 stall_IF 为 1，让 PC 保持原来的值 (if_pc)
+    // 拦截 PC 的更新：如果 stall_IF 为 1，让 PC 保持原来的值 (if_pc)
     assign actual_next_pc = stall_IF ? if_pc : next_pc;
 
     PC #(DATAWIDTH, RESET_VAL) pc_inst (
