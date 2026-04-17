@@ -52,5 +52,29 @@ module RF #(
     assign rR1_data = (wen && waddr != 5'd0 && waddr == rR1) ? wdata : reg_bank[rR1];
     assign rR2_data = (wen && waddr != 5'd0 && waddr == rR2) ? wdata : reg_bank[rR2];
 
+    // ========================================================
+    // 🌟 核心新增：DPI-C 接口对接
+    // ========================================================
+    
+    // 1. 导入 C++ 中的上下文捕获函数
+    // 注意：因为 C++ 内部调用了 svGetScope()，所以必须加 context 关键字！
+    import "DPI-C" context function void set_regfile_scope();
+
+    // 2. 导出 SV 中的读寄存器函数给 C++ 使用
+    export "DPI-C" function get_gpr;
+
+    // 3. 实现读取逻辑：根据索引返回对应寄存器的值
+    function int get_gpr(input int idx);
+        if (idx == 0) begin
+            return 0; // x0 永远为 0
+        end else begin
+            return reg_bank[idx];
+        end
+    endfunction
+
+    // 4. 在仿真开始的第 0 时刻，主动告诉 C++ 自己(RF)所在的位置
+    initial begin
+        set_regfile_scope();
+    end
 
 endmodule

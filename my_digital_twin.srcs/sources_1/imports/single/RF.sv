@@ -38,7 +38,7 @@ module RF #(
 );
     logic [DATAWIDTH - 1:0] reg_bank [31:0];
 
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk, posedge rst) begin
         if (rst) begin
             for (int i = 0; i < 32; i ++) begin
                 reg_bank[i] <= 0;
@@ -49,8 +49,12 @@ module RF #(
         end
     end
 
-    assign rR1_data = (wen && waddr != 5'd0 && waddr == rR1) ? wdata : reg_bank[rR1];
-    assign rR2_data = (wen && waddr != 5'd0 && waddr == rR2) ? wdata : reg_bank[rR2];
+    always_comb begin
+        rR1_data = reg_bank[rR1];
+    end
 
+    always_comb begin
+        rR2_data = reg_bank[rR2];
+    end
 
 endmodule

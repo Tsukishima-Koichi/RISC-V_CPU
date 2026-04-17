@@ -52,7 +52,7 @@ module CSR #(
     // ==========================================
     // 3. 写入 CSR (时序逻辑)
     // ==========================================
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             mstatus <= 32'h1800; // 默认 M 模式开启
             mtvec   <= 32'h0;
@@ -84,7 +84,6 @@ module CSR #(
                     12'h305: mtvec   <= next_csr_val;
                     12'h341: mepc    <= next_csr_val;
                     12'h342: mcause  <= next_csr_val;
-                    default: ; // <--- 加上这行，兜底所有未定义的情况
                 endcase
             end
         end
