@@ -151,3 +151,9 @@ set_property PACKAGE_PIN AJ29 [get_ports { virtual_seg[31] }]
 set_property IOSTANDARD LVCMOS18 [get_ports { virtual_seg[31] }]
 set_property PACKAGE_PIN AK26 [get_ports { virtual_seg[30] }]
 set_property IOSTANDARD LVCMOS18 [get_ports { virtual_seg[30] }]
+
+# 告诉Vivado从50MHz时钟域到CPU时钟域的路径是伪路径 (False Path)
+set_false_path -from [get_clocks clk_out1_pll] -to [get_clocks clk_out2_pll]
+
+# 告诉Vivado从CPU时钟域到50MHz时钟域的路径也是伪路径 (双向放行)
+set_false_path -from [get_clocks clk_out2_pll] -to [get_clocks clk_out1_pll]

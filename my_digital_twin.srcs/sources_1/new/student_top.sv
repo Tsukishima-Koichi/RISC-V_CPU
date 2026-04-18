@@ -73,7 +73,7 @@ module student_top#(
 
     // 替换原有的异步 IROM Mem_IROM
     BRAM_IROM Mem_IROM (
-        .clka  (~w_cpu_clk),     // BRAM 必须接 CPU 时钟 半周期错位
+        .clka  (w_cpu_clk),     // BRAM 必须接 CPU 时钟 
         .addra (inst_addr),     // pc[13:2]
         .douta (instruction)    // 输出指令
     );

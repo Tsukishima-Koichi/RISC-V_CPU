@@ -53,6 +53,11 @@ module perip_bridge(
     logic [39:0] seg_output;
     logic cnt_enable_cfg;
 
+    // 增加寄存器，用来保存地址和组合逻辑数据
+    logic [31:0] perip_addr_reg;
+    logic [31:0] mmio_rdata_reg;
+    logic [31:0] cnt_rdata_reg;
+
     // write process
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -81,21 +86,6 @@ module perip_bridge(
                     end
                 end
             endcase
-        end
-    end
-
-    // read process: in one cycle
-    always_comb begin
-        if (~perip_wen) begin
-            case (perip_addr)
-                SW0_ADDR:  mmio_rdata = virtual_sw_input[31:0];
-                SW1_ADDR:  mmio_rdata = virtual_sw_input[63:32];
-                KEY_ADDR:  mmio_rdata = {24'd0, virtual_key_input};
-                SEG_ADDR:  mmio_rdata = seg_wdata;
-                default:   mmio_rdata = 32'hDEAD_BEEF;
-            endcase
-        end else begin
-            mmio_rdata = 32'h0;
         end
     end
 
@@ -137,12 +127,35 @@ module perip_bridge(
         .perip_rdata		(cnt_rdata)
     );
 
-    assign perip_rdata = {32{perip_addr == SW0_ADDR}} & mmio_rdata |
-                        {32{perip_addr == SW1_ADDR}} & mmio_rdata |
-                        {32{perip_addr == KEY_ADDR}} & mmio_rdata |
-                        {32{perip_addr == SEG_ADDR}} & mmio_rdata |
-                        {32{perip_addr >= DRAM_ADDR_START && perip_addr < DRAM_ADDR_END}} & dram_rdata |
-                        {32{perip_addr == CNT_ADDR}} & cnt_rdata;
+    always_ff @(posedge clk) begin
+        perip_addr_reg <= perip_addr;     // 地址打一拍
+        mmio_rdata_reg <= mmio_rdata;     // 组合逻辑读出的外设数据打一拍
+        cnt_rdata_reg  <= cnt_rdata;      // 计数器数据打一拍
+    end
+
+    // read process: in one cycle (组合逻辑保持不变)
+    always_comb begin
+        if (~perip_wen) begin
+            case (perip_addr)
+                SW0_ADDR:  mmio_rdata = virtual_sw_input[31:0];
+                SW1_ADDR:  mmio_rdata = virtual_sw_input[63:32];
+                KEY_ADDR:  mmio_rdata = {24'd0, virtual_key_input};
+                SEG_ADDR:  mmio_rdata = seg_wdata;
+                default:   mmio_rdata = 32'hDEAD_BEEF;
+            endcase
+        end else begin
+            mmio_rdata = 32'h0;
+        end
+    end
+
+    // 🌟 终极合并：全部使用打了一拍的地址(perip_addr_reg) 和 打了一拍的数据来匹配！
+    assign perip_rdata = 
+        {32{perip_addr_reg == SW0_ADDR}} & mmio_rdata_reg |
+        {32{perip_addr_reg == SW1_ADDR}} & mmio_rdata_reg |
+        {32{perip_addr_reg == KEY_ADDR}} & mmio_rdata_reg |
+        {32{perip_addr_reg == SEG_ADDR}} & mmio_rdata_reg |
+        {32{perip_addr_reg >= DRAM_ADDR_START && perip_addr_reg < DRAM_ADDR_END}} & dram_rdata |
+        {32{perip_addr_reg == CNT_ADDR}} & cnt_rdata_reg;
     
     assign virtual_led_output = LED;
     assign virtual_seg_output = seg_output;
