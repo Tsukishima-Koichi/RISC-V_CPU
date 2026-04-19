@@ -87,20 +87,15 @@ module ID_EX_Reg #(parameter DATAWIDTH = 32)(
 );
     always_ff @(posedge clk) begin
         if (rst || flush) begin
-            // {ex_pc, ex_rs1_data, ex_rs2_data, ex_imm, ex_ret_pc} <= 0;
-            // {ex_rd, ex_rs1, ex_rs2} <= 0;
-            // {ex_RegWen, ex_MemWen, ex_IsBranch, ex_AluSrcB} <= 0;
-            // {ex_JmpType, ex_WbSel, ex_AluSrcA} <= 0;
-            // ex_alu_ctrl <= 0;
-            // ex_funct3   <= 0;
-            // {ex_forward_A, ex_forward_B} <= 0; // <--- 新增：复位清零
-            // {ex_csr_idx, ex_CsrWen, ex_CsrImmSel, ex_IsEcall, ex_IsEbreak, ex_IsMret, ex_CsrOp} <= 0;
-            // ex_branch_target <= 0; // 冲刷时清零
-            ex_rd <= 0;
+            {ex_pc, ex_rs1_data, ex_rs2_data, ex_imm, ex_ret_pc} <= 0;
+            {ex_rd, ex_rs1, ex_rs2} <= 0;
             {ex_RegWen, ex_MemWen, ex_IsBranch, ex_AluSrcB} <= 0;
             {ex_JmpType, ex_WbSel, ex_AluSrcA} <= 0;
-            ex_CsrWen <= 0; 
-            ex_IsEcall <= 0; ex_IsEbreak <= 0; ex_IsMret <= 0;
+            ex_alu_ctrl <= 0;
+            ex_funct3   <= 0;
+            {ex_forward_A, ex_forward_B} <= 0; // <--- 新增：复位清零
+            {ex_csr_idx, ex_CsrWen, ex_CsrImmSel, ex_IsEcall, ex_IsEbreak, ex_IsMret, ex_CsrOp} <= 0;
+            ex_branch_target <= 0; // 冲刷时清零
         end else if (!stall) begin
             {ex_pc, ex_rs1_data, ex_rs2_data, ex_imm, ex_ret_pc} <= {id_pc, id_rs1_data, id_rs2_data, id_imm, id_ret_pc};
             {ex_rd, ex_rs1, ex_rs2} <= {id_rd, id_rs1, id_rs2};
@@ -136,14 +131,11 @@ module EX_MEM1_Reg #(parameter DATAWIDTH = 32)(
 );
     always_ff @(posedge clk) begin
         if (rst || flush) begin
-            // {mem1_alu_res, mem1_rs2_data, mem1_ret_pc, mem1_agu_res, mem1_csr_rdata} <= 0;
-            // mem1_rd <= 0;
-            // {mem1_RegWen, mem1_MemWen} <= 0;
-            // mem1_WbSel <= 0;
-            // mem1_funct3 <= 0;
+            {mem1_alu_res, mem1_rs2_data, mem1_ret_pc, mem1_agu_res, mem1_csr_rdata} <= 0;
             mem1_rd <= 0;
             {mem1_RegWen, mem1_MemWen} <= 0;
             mem1_WbSel <= 0;
+            mem1_funct3 <= 0;
         end else if (!stall) begin
             {mem1_alu_res, mem1_rs2_data, mem1_ret_pc, mem1_agu_res, mem1_csr_rdata} <= 
             {ex_alu_res,   ex_rs2_data,   ex_ret_pc,   ex_agu_res,   ex_csr_rdata};

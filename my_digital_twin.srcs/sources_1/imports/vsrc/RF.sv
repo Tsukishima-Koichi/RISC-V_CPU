@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// // 1. 导入 C++ 中的作用域注册函数
-// import "DPI-C" context function void set_regfile_scope();
+// 1. 导入 C++ 中的作用域注册函数
+import "DPI-C" context function void set_regfile_scope();
 
 module RF #(
     parameter   ADDR_WIDTH = 5  ,
@@ -22,19 +22,19 @@ module RF #(
 );
     logic [DATAWIDTH - 1:0] reg_bank [31:0];
 
-    // // ====================================================
-    // // 2. 导出获取通用寄存器的函数给 C++ 调用
-    // // ====================================================
-    // export "DPI-C" function get_gpr;
-    // function int get_gpr(input int idx);
-    //     return reg_bank[idx];
-    // endfunction
+    // ====================================================
+    // 2. 导出获取通用寄存器的函数给 C++ 调用
+    // ====================================================
+    export "DPI-C" function get_gpr;
+    function int get_gpr(input int idx);
+        return reg_bank[idx];
+    endfunction
 
-    // // 3. 在仿真刚开始时，调用 C++ 函数把当前的 scope 传过去
-    // initial begin
-    //     set_regfile_scope();
-    // end
-    // // ====================================================
+    // 3. 在仿真刚开始时，调用 C++ 函数把当前的 scope 传过去
+    initial begin
+        set_regfile_scope();
+    end
+    // ====================================================
 
     always_ff @(posedge clk) begin
         if (rst) begin

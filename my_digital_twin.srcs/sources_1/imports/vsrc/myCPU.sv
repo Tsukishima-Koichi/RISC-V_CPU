@@ -179,7 +179,7 @@ module myCPU (
 
     // 实例化高容量同步分支预测器 (1024 项)
     BranchPredictor #(32, 10) bp_inst (
-        .clk(cpu_clk),
+        .clk(cpu_clk), .rst(cpu_rst),
         
         .if1_pc(if1_pc),                   // 发送地址给 BRAM
         .if2_pc(if2_pc),                   // 校验 Tag
@@ -290,15 +290,16 @@ module myCPU (
     always_comb begin
         case (ex_forward_A) 
             2'b11:   forwarded_rs1 = mem1_fw_data;
-            2'b10:   forwarded_rs1 = mem2_fw_data; // 🌟 使用通道 B：不含 BRAM 的纯组合逻辑线
-            2'b01:   forwarded_rs1 = wb_data;      // WB 阶段的 Load 数据在这里前递
+            2'b10:   forwarded_rs1 = mem2_final_data;
+            2'b01:   forwarded_rs1 = wb_data;
             default: forwarded_rs1 = ex_rs1_data;
         endcase
     end
+
     always_comb begin
         case (ex_forward_B) 
             2'b11:   forwarded_rs2 = mem1_fw_data;
-            2'b10:   forwarded_rs2 = mem2_fw_data; // 🌟 同上
+            2'b10:   forwarded_rs2 = mem2_final_data;
             2'b01:   forwarded_rs2 = wb_data;
             default: forwarded_rs2 = ex_rs2_data;
         endcase
@@ -416,37 +417,19 @@ module myCPU (
     );
 
     // 数据选择器被前移到 MEM2 中完成了！
-    // 🌟 新增线缆声明：将写回数据和前递数据分离
-    logic [31:0] mem2_final_data_for_wb;
-    logic [31:0] mem2_fw_data; 
-
-    // 通道 A：给 WB 阶段真正写回用的数据 (包含 BRAM 数据)
     always_comb begin
         case (mem2_WbSel) 
-            2'b01:   mem2_final_data_for_wb = mem2_ret_pc;
-            2'b10:   mem2_final_data_for_wb = mem2_rdata_ext; // <--- BRAM 数据仅在此处出现
-            2'b11:   mem2_final_data_for_wb = mem2_csr_rdata;
-            default: mem2_final_data_for_wb = mem2_alu_res;
+            2'b01:   mem2_final_data = mem2_ret_pc;
+            2'b10:   mem2_final_data = mem2_rdata_ext;
+            2'b11:   mem2_final_data = mem2_csr_rdata;
+            default: mem2_final_data = mem2_alu_res;
         endcase
     end
 
-    // 通道 B：给 EX 阶段前递用的数据 (🌟 核心魔法：物理切断 BRAM 通路)
-    // 因为 Load-Use 会停顿，Load 绝不可能在 MEM2 时被前递！
-    // 所以这里直接剔除 2'b10 的情况，让综合工具断开 BRAM 到前递网络的静态连线！
-    always_comb begin
-        case (mem2_WbSel) 
-            2'b01:   mem2_fw_data = mem2_ret_pc;
-            2'b11:   mem2_fw_data = mem2_csr_rdata;
-            // 注意：没有 2'b10！如果真遇到 2'b10，用 ALU_res 兜底，反正逻辑上绝不会命中
-            default: mem2_fw_data = mem2_alu_res; 
-        endcase
-    end
-
-    // 流水线寄存器例化名称更新
     MEM2_WB_Reg #(DATAWIDTH) mem2_wb_reg (
         .clk(cpu_clk), .rst(cpu_rst), .flush(1'b0), .stall(1'b0),
-        .mem2_final_data(mem2_final_data_for_wb), // 🌟 传入通道 A
-        .mem2_rd(mem2_rd), .mem2_RegWen(mem2_RegWen),
+        .mem2_final_data(mem2_final_data), .mem2_rd(mem2_rd), .mem2_RegWen(mem2_RegWen),
+        
         .wb_data(wb_data), .wb_rd(wb_rd), .wb_RegWen(wb_RegWen)
     );
 

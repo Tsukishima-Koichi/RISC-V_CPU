@@ -81,27 +81,25 @@ module myCPU (
     logic        ex_is_jump_or_branch;
 
     // MEM Stage
-    // MEM1
-    logic [31:0] mem1_alu_res, mem1_rs2_data, mem1_ret_pc, mem1_agu_res, mem1_csr_rdata;
-    logic [4:0]  mem1_rd;
-    logic        mem1_RegWen, mem1_MemWen;
-    logic [1:0]  mem1_WbSel;
-    logic [2:0]  mem1_funct3;
-    logic [31:0] mem1_fw_data;
-
-    // MEM2
-    logic [31:0] mem2_alu_res, mem2_ret_pc, mem2_agu_res, mem2_csr_rdata;
-    logic [4:0]  mem2_rd;
-    logic        mem2_RegWen;
-    logic [1:0]  mem2_WbSel;
-    logic [2:0]  mem2_funct3;
-    logic [31:0] mem2_rdata_align, mem2_rdata_ext;
-    logic [31:0] mem2_final_data;
+    logic [31:0] mem_alu_res, mem_rs2_data, mem_ret_pc;
+    logic [4:0]  mem_rd;
+    logic        mem_RegWen, mem_MemWen;
+    logic [1:0]  mem_WbSel;
+    logic [2:0]  mem_funct3;
+    logic [31:0] mem_csr_rdata;
+    logic [31:0] mem_fw_data; 
+    logic [31:0] mem_agu_res;
 
     // WB Stage
-    logic [31:0] wb_data;
+    logic [31:0] wb_alu_res, wb_rdata_ext, wb_ret_pc;
     logic [4:0]  wb_rd;
     logic        wb_RegWen;
+    logic [1:0]  wb_WbSel;
+    logic [31:0] wb_csr_rdata;
+    logic [31:0] wb_data;
+    logic [31:0] wb_agu_res;
+    logic [2:0]  wb_funct3;
+    logic [31:0] wb_rdata_align;
 
     // ==========================================
     // 全局控制信号与冒险检测
@@ -126,8 +124,8 @@ module myCPU (
         .ex_RegWen   (ex_RegWen),
         .ex_WbSel    (ex_WbSel),
         .ex_rd       (ex_rd),
-        .mem1_WbSel   (mem1_WbSel),
-        .mem1_rd      (mem1_rd),
+        .mem_WbSel   (mem_WbSel),
+        .mem_rd      (mem_rd),
         .stall_IF    (hd_stall_IF),
         .stall_ID    (stall_ID),
         .flush_ID_EX (hd_flush_ID_EX)
@@ -156,7 +154,7 @@ module myCPU (
     // ==========================================
     // Stage 1: IF1 (Address Generation)
     // ==========================================
-    assign irom_addr = stall_IF1 ? if2_pc : if1_pc;
+    assign irom_addr = if1_pc;
     
     PC #(DATAWIDTH, RESET_VAL) pc_inst (
         .clk(cpu_clk), .rst(cpu_rst),
@@ -179,7 +177,7 @@ module myCPU (
 
     // 实例化高容量同步分支预测器 (1024 项)
     BranchPredictor #(32, 10) bp_inst (
-        .clk(cpu_clk),
+        .clk(cpu_clk), .rst(cpu_rst),
         
         .if1_pc(if1_pc),                   // 发送地址给 BRAM
         .if2_pc(if2_pc),                   // 校验 Tag
@@ -236,14 +234,20 @@ module myCPU (
         .alu_ctrl (id_alu_ctrl)
     );
 
-    assign mem1_fw_data = (mem1_WbSel == 2'b01) ? mem1_ret_pc : 
-                          (mem1_WbSel == 2'b11) ? mem1_csr_rdata : mem1_alu_res;
+    RF #(5, DATAWIDTH) rf_inst (
+        .clk(cpu_clk), .rst(cpu_rst), 
+        .wen(wb_RegWen), .waddr(wb_rd), .wdata(wb_data),
+        .rR1(id_inst[19:15]), .rR2(id_inst[24:20]), 
+        .rR1_data(id_rs1_data), .rR2_data(id_rs2_data)
+    );
+
+    assign mem_fw_data = (mem_WbSel == 2'b01) ? mem_ret_pc : 
+                         (mem_WbSel == 2'b11) ? mem_csr_rdata : mem_alu_res;
 
     ForwardingUnit fw_inst (
         .id_rs1(id_inst[19:15]), .id_rs2(id_inst[24:20]),
-        .ex_RegWen  (ex_RegWen),   .ex_rd  (ex_rd),
-        .mem1_RegWen(mem1_RegWen), .mem1_rd(mem1_rd),
-        .mem2_RegWen(mem2_RegWen), .mem2_rd(mem2_rd),
+        .ex_RegWen(ex_RegWen),   .ex_rd(ex_rd),
+        .mem_RegWen(mem_RegWen), .mem_rd(mem_rd),
         .id_forward_A(id_forward_A), .id_forward_B(id_forward_B)
     );
 
@@ -289,16 +293,15 @@ module myCPU (
     // ==========================================
     always_comb begin
         case (ex_forward_A) 
-            2'b11:   forwarded_rs1 = mem1_fw_data;
-            2'b10:   forwarded_rs1 = mem2_fw_data; // 🌟 使用通道 B：不含 BRAM 的纯组合逻辑线
-            2'b01:   forwarded_rs1 = wb_data;      // WB 阶段的 Load 数据在这里前递
+            2'b10:   forwarded_rs1 = mem_fw_data;
+            2'b01:   forwarded_rs1 = wb_data;
             default: forwarded_rs1 = ex_rs1_data;
         endcase
     end
+
     always_comb begin
         case (ex_forward_B) 
-            2'b11:   forwarded_rs2 = mem1_fw_data;
-            2'b10:   forwarded_rs2 = mem2_fw_data; // 🌟 同上
+            2'b10:   forwarded_rs2 = mem_fw_data;
             2'b01:   forwarded_rs2 = wb_data;
             default: forwarded_rs2 = ex_rs2_data;
         endcase
@@ -363,116 +366,68 @@ module myCPU (
 
     assign ex_take_trap = ex_IsEcall | ex_IsEbreak | ex_IsMret;
 
-    EX_MEM1_Reg #(DATAWIDTH) ex_mem1_reg (
-        .clk(cpu_clk), .rst(cpu_rst), .flush(1'b0), .stall(1'b0),
+    EX_MEM_Reg #(DATAWIDTH) ex_mem_reg (
+        .clk(cpu_clk), .rst(cpu_rst), .flush(flush_EX_MEM), .stall(stall_MEM),
         .ex_alu_res(ex_alu_res), .ex_agu_res(ex_agu_res),      
         .ex_rs2_data(forwarded_rs2), .ex_ret_pc(ex_ret_pc),
         .ex_rd(ex_rd), .ex_RegWen(ex_RegWen), .ex_MemWen(ex_MemWen), .ex_WbSel(ex_WbSel), .ex_funct3(ex_funct3),
         .ex_csr_rdata(ex_csr_rdata),
         
-        .mem1_alu_res(mem1_alu_res), .mem1_agu_res(mem1_agu_res),    
-        .mem1_rs2_data(mem1_rs2_data), .mem1_ret_pc(mem1_ret_pc),
-        .mem1_rd(mem1_rd), .mem1_RegWen(mem1_RegWen), .mem1_MemWen(mem1_MemWen), 
-        .mem1_WbSel(mem1_WbSel), .mem1_funct3(mem1_funct3), .mem1_csr_rdata(mem1_csr_rdata)
+        .mem_alu_res(mem_alu_res), .mem_agu_res(mem_agu_res),    
+        .mem_rs2_data(mem_rs2_data), .mem_ret_pc(mem_ret_pc),
+        .mem_rd(mem_rd), .mem_RegWen(mem_RegWen), .mem_MemWen(mem_MemWen), 
+        .mem_WbSel(mem_WbSel), .mem_funct3(mem_funct3), .mem_csr_rdata(mem_csr_rdata)
     );
 
     // ==========================================
-    // Stage 5: MEM1 (Memory Access Request)
+    // Stage 5: MEM (Memory Access)
     // ==========================================
-    assign perip_addr = mem1_agu_res;
-    assign perip_wen  = mem1_MemWen;
+    assign perip_addr = mem_agu_res;
+    assign perip_wen  = mem_MemWen;
 
     StoreAlign #(DATAWIDTH) store_align_inst (
-        .addr_offset (mem1_agu_res[1:0]), 
-        .wdata_in    (mem1_rs2_data),
-        .size_mask   (mem1_funct3[1:0]), 
-        .MemWrite    (mem1_MemWen),
+        .addr_offset (mem_agu_res[1:0]), 
+        .wdata_in    (mem_rs2_data),
+        .size_mask   (mem_funct3[1:0]), 
+        .MemWrite    (mem_MemWen),
         .wmask_out   (perip_mask),   
         .wdata_out   (perip_wdata)   
     );
 
-    MEM1_MEM2_Reg #(DATAWIDTH) mem1_mem2_reg (
-        .clk(cpu_clk), .rst(cpu_rst), .flush(1'b0), .stall(1'b0),
-        .mem1_alu_res(mem1_alu_res), .mem1_agu_res(mem1_agu_res), .mem1_ret_pc(mem1_ret_pc), .mem1_csr_rdata(mem1_csr_rdata),
-        .mem1_rd(mem1_rd), .mem1_RegWen(mem1_RegWen), .mem1_WbSel(mem1_WbSel), .mem1_funct3(mem1_funct3),
-        
-        .mem2_alu_res(mem2_alu_res), .mem2_agu_res(mem2_agu_res), .mem2_ret_pc(mem2_ret_pc), .mem2_csr_rdata(mem2_csr_rdata),
-        .mem2_rd(mem2_rd), .mem2_RegWen(mem2_RegWen), .mem2_WbSel(mem2_WbSel), .mem2_funct3(mem2_funct3)
+    MEM_WB_Reg #(DATAWIDTH) mem_wb_reg (
+        .clk(cpu_clk), .rst(cpu_rst), .flush(flush_MEM_WB), .stall(1'b0),
+        .mem_alu_res(mem_alu_res), .mem_ret_pc(mem_ret_pc),
+        .mem_agu_res(mem_agu_res), .mem_funct3(mem_funct3), 
+        .mem_rd(mem_rd), .mem_RegWen(mem_RegWen), .mem_WbSel(mem_WbSel),
+        .mem_csr_rdata(mem_csr_rdata),
+
+        .wb_alu_res(wb_alu_res), .wb_ret_pc(wb_ret_pc),
+        .wb_agu_res(wb_agu_res), .wb_funct3(wb_funct3),     
+        .wb_rd(wb_rd), .wb_RegWen(wb_RegWen), .wb_WbSel(wb_WbSel), .wb_csr_rdata(wb_csr_rdata)
     );
 
     // ==========================================
-    // Stage 6: MEM2 (Memory Read Process) 🌟 核心拆分
+    // Stage 6: WB (Write Back)
     // ==========================================
     always_comb begin
-        case (mem2_funct3) 
-            3'b000, 3'b100: mem2_rdata_align = perip_rdata >> (8 * mem2_agu_res[1:0]);
-            3'b001, 3'b101: mem2_rdata_align = perip_rdata >> (16 * mem2_agu_res[1]);  
-            default:        mem2_rdata_align = perip_rdata;
+        case (wb_funct3) 
+            3'b000, 3'b100: wb_rdata_align = perip_rdata >> (8 * wb_agu_res[1:0]);
+            3'b001, 3'b101: wb_rdata_align = perip_rdata >> (16 * wb_agu_res[1]);  
+            default:        wb_rdata_align = perip_rdata;
         endcase
     end
 
     Mask #(DATAWIDTH) mask_inst (
-        .mask(mem2_funct3), .dout(mem2_rdata_align), .mdata(mem2_rdata_ext)
+        .mask(wb_funct3), .dout(wb_rdata_align), .mdata(wb_rdata_ext)
     );
 
-    // 数据选择器被前移到 MEM2 中完成了！
-    // 🌟 新增线缆声明：将写回数据和前递数据分离
-    logic [31:0] mem2_final_data_for_wb;
-    logic [31:0] mem2_fw_data; 
-
-    // 通道 A：给 WB 阶段真正写回用的数据 (包含 BRAM 数据)
     always_comb begin
-        case (mem2_WbSel) 
-            2'b01:   mem2_final_data_for_wb = mem2_ret_pc;
-            2'b10:   mem2_final_data_for_wb = mem2_rdata_ext; // <--- BRAM 数据仅在此处出现
-            2'b11:   mem2_final_data_for_wb = mem2_csr_rdata;
-            default: mem2_final_data_for_wb = mem2_alu_res;
+        case (wb_WbSel) 
+            2'b01:   wb_data = wb_ret_pc;
+            2'b10:   wb_data = wb_rdata_ext;
+            2'b11:   wb_data = wb_csr_rdata;
+            default: wb_data = wb_alu_res;
         endcase
     end
-
-    // 通道 B：给 EX 阶段前递用的数据 (🌟 核心魔法：物理切断 BRAM 通路)
-    // 因为 Load-Use 会停顿，Load 绝不可能在 MEM2 时被前递！
-    // 所以这里直接剔除 2'b10 的情况，让综合工具断开 BRAM 到前递网络的静态连线！
-    always_comb begin
-        case (mem2_WbSel) 
-            2'b01:   mem2_fw_data = mem2_ret_pc;
-            2'b11:   mem2_fw_data = mem2_csr_rdata;
-            // 注意：没有 2'b10！如果真遇到 2'b10，用 ALU_res 兜底，反正逻辑上绝不会命中
-            default: mem2_fw_data = mem2_alu_res; 
-        endcase
-    end
-
-    // 流水线寄存器例化名称更新
-    MEM2_WB_Reg #(DATAWIDTH) mem2_wb_reg (
-        .clk(cpu_clk), .rst(cpu_rst), .flush(1'b0), .stall(1'b0),
-        .mem2_final_data(mem2_final_data_for_wb), // 🌟 传入通道 A
-        .mem2_rd(mem2_rd), .mem2_RegWen(mem2_RegWen),
-        .wb_data(wb_data), .wb_rd(wb_rd), .wb_RegWen(wb_RegWen)
-    );
-
-    // ==========================================
-    // Stage 7: WB (Write Back)
-    // ==========================================
-    // 没有任何组合逻辑！没有任何 MUX！
-    // 纯粹的连线，极大地降低了 Setup Time (建立时间) 的压力。
-
-    // 通用寄存器组 (Register File) 实例化
-    // 读端口由 ID 阶段的指令驱动
-    // 写端口由 WB 阶段的流水线寄存器驱动
-    RF #(5, DATAWIDTH) rf_inst (
-        .clk(cpu_clk), 
-        .rst(cpu_rst), 
-        
-        // 🌟 写端口 (属于 Stage 7: WB)
-        .wen      (wb_RegWen), 
-        .waddr    (wb_rd), 
-        .wdata    (wb_data),    // 从 MEM2_WB_Reg 直接流出的最终结果
-        
-        // 🌟 读端口 (属于 Stage 3: ID)
-        .rR1      (id_inst[19:15]), 
-        .rR2      (id_inst[24:20]), 
-        .rR1_data (id_rs1_data), 
-        .rR2_data (id_rs2_data)
-    );
 
 endmodule
