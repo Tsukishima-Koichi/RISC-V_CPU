@@ -1,23 +1,4 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 04/16/2025 06:21:13 PM
-// Design Name: 
-// Module Name: student_top
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
 
 module student_top#(
@@ -65,11 +46,6 @@ module student_top#(
         .perip_wdata        (perip_wdata),    
         .perip_rdata        (perip_rdata)     
     );
-
-    // IROM Mem_IROM (
-    //     .a          (inst_addr),
-    //     .spo        (instruction)
-    // );
 
     // 替换原有的异步 IROM Mem_IROM
     BRAM_IROM Mem_IROM (

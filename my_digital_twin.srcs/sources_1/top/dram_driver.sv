@@ -22,7 +22,7 @@ module dram_driver(
 
     // 例化生成的 BRAM IP
     BRAM_DRAM Mem_DRAM (
-        .clka  (~clk),               // BRAM 必须接 CPU 时钟 半周期错位
+        .clka  (clk),               
         .wea   (actual_wea),         // 4位掩码控制字节写入
         .addra (dram_addr),          // 16位字地址
         .dina  (perip_wdata),        // 32位写数据

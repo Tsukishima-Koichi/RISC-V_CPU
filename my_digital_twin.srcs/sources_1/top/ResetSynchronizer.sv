@@ -25,7 +25,12 @@ module ResetSynchronizer (
     input  logic async_rst_in,  // 来自板子上的物理按键（通常需要先做消抖处理）
     output logic sync_rst_out   // 送给你 CPU 内部所有模块的复位信号
 );
-    logic rst_sync_reg1, rst_sync_reg2;
+    logic rst_sync_reg1;
+
+    // 🌟 核心魔法：(* max_fanout = "30" *)
+    // 强制 Vivado 复制这个寄存器，保证它连出的线不超过 30 根！
+    // 工具会自动在物理层复制出好几个 rst_sync_reg2，并分散放置在目标附近
+    (* max_fanout = "30" *) logic rst_sync_reg2;
 
     always_ff @(posedge clk, posedge async_rst_in) begin
         if (async_rst_in) begin

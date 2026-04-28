@@ -73,8 +73,6 @@ module BranchPredictor #(
     // 3. EX 阶段更新逻辑
     // ----------------------------------------
     always_ff @(posedge clk) begin
-        // 🌟 删除了 if(rst) begin ... end，直接进入分支处理！
-        // 这将允许 Vivado 完美推断 BRAM
         if (ex_is_branch) begin
             btb_valid[ex_idx]  <= 1'b1;
             btb_tag[ex_idx]    <= ex_tag;
