@@ -321,3 +321,35 @@ module MEM2_WB_Reg #(parameter DATAWIDTH = 32)(
     end
 endmodule
 
+
+// // ==========================================
+// // 6. MEM2/WB Pipeline Register
+// // ==========================================
+// module MEM2_WB_Reg #(parameter DATAWIDTH = 32)(
+//     input  logic clk, rst, flush, stall,
+//     input  logic [DATAWIDTH-1:0] mem2_final_wb_data, // 🌟 提前在 MEM2 算好的终极写回数据
+//     input  logic [4:0]           mem2_rd,
+//     input  logic                 mem2_RegWen,
+
+//     output logic [DATAWIDTH-1:0] wb_final_wb_data,   // 🌟 纯寄存器输出，直接喂给前递网络和 RF
+//     output logic [4:0]           wb_rd,
+//     output logic                 wb_RegWen
+// );
+//     // 控制通路
+//     always_ff @(posedge clk) begin
+//         if (rst || flush) begin
+//             wb_rd <= 0;
+//             wb_RegWen <= 0;
+//         end else if (!stall) begin
+//             wb_rd <= mem2_rd;
+//             wb_RegWen <= mem2_RegWen;
+//         end
+//     end
+
+//     // 数据通路 (剥离了所有零碎信号，只传一条大道)
+//     always_ff @(posedge clk) begin
+//         if (!stall) begin
+//             wb_final_wb_data <= mem2_final_wb_data;
+//         end
+//     end
+// endmodule

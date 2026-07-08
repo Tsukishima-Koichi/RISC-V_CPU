@@ -575,6 +575,76 @@ module myCPU (
 
     assign wb_data = (wb_WbSel == 2'b10) ? wb_rdata_ext : wb_non_load_data;
 
+    // (下方实例化 RF 的代码保持不变...)
+    // // ==========================================
+    // // Stage 6: MEM2 (Memory Read Process)
+    // // ==========================================
+    // logic [31:0] mem2_non_load_data;
+    // always_comb begin
+    //     case (mem2_WbSel) 
+    //         2'b01:   mem2_non_load_data = mem2_ret_pc;
+    //         2'b11:   mem2_non_load_data = mem2_csr_rdata;
+    //         default: mem2_non_load_data = mem2_alu_res;
+    //     endcase
+    // end
+
+    // // 🌟🌟🌟 核心优化：将原先 WB 阶段的巨型截取与符号扩展逻辑提前到 MEM2！ 🌟🌟🌟
+    // always_comb begin
+    //     case (mem2_funct3)
+    //         3'b000: begin // LB 
+    //             case(mem2_agu_res[1:0])
+    //                 2'b00: mem2_rdata_ext = {{24{perip_rdata[ 7]}}, perip_rdata[ 7: 0]};
+    //                 2'b01: mem2_rdata_ext = {{24{perip_rdata[15]}}, perip_rdata[15: 8]};
+    //                 2'b10: mem2_rdata_ext = {{24{perip_rdata[23]}}, perip_rdata[23:16]};
+    //                 2'b11: mem2_rdata_ext = {{24{perip_rdata[31]}}, perip_rdata[31:24]};
+    //             endcase
+    //         end
+    //         3'b100: begin // LBU 
+    //             case(mem2_agu_res[1:0])
+    //                 2'b00: mem2_rdata_ext = {24'b0, perip_rdata[ 7: 0]};
+    //                 2'b01: mem2_rdata_ext = {24'b0, perip_rdata[15: 8]};
+    //                 2'b10: mem2_rdata_ext = {24'b0, perip_rdata[23:16]};
+    //                 2'b11: mem2_rdata_ext = {24'b0, perip_rdata[31:24]};
+    //             endcase
+    //         end
+    //         3'b001: begin // LH 
+    //             case(mem2_agu_res[1])
+    //                 1'b0: mem2_rdata_ext = {{16{perip_rdata[15]}}, perip_rdata[15: 0]};
+    //                 1'b1: mem2_rdata_ext = {{16{perip_rdata[31]}}, perip_rdata[31:16]};
+    //             endcase
+    //         end
+    //         3'b101: begin // LHU 
+    //             case(mem2_agu_res[1])
+    //                 1'b0: mem2_rdata_ext = {16'b0, perip_rdata[15: 0]};
+    //                 1'b1: mem2_rdata_ext = {16'b0, perip_rdata[31:16]};
+    //             endcase
+    //         end
+    //         default: mem2_rdata_ext = perip_rdata; // LW
+    //     endcase
+    // end
+
+    // // 🌟🌟🌟 在 MEM2 阶段直接算出最终要写回寄存器的 32 位数据 🌟🌟🌟
+    // logic [31:0] mem2_final_wb_data;
+    // assign mem2_final_wb_data = (mem2_WbSel == 2'b10) ? mem2_rdata_ext : mem2_non_load_data;
+
+    // // 实例化更新后的流水线寄存器
+    // MEM2_WB_Reg #(DATAWIDTH) mem2_wb_reg (
+    //     .clk(cpu_clk), .rst(cpu_rst), .flush(1'b0), .stall(1'b0),
+        
+    //     .mem2_final_wb_data(mem2_final_wb_data), 
+    //     .mem2_rd           (mem2_rd), 
+    //     .mem2_RegWen       (mem2_RegWen),
+        
+    //     .wb_final_wb_data  (wb_data),  // 🌟 这里输出的 wb_data 直接连入前递网络，无任何延迟！
+    //     .wb_rd             (wb_rd), 
+    //     .wb_RegWen         (wb_RegWen)
+    // );
+
+    // // ==========================================
+    // // Stage 7: WB (Write Back)
+    // // ==========================================
+    // // （整个 WB 阶段的巨型组合逻辑已被掏空，极其清爽）
+
     RF #(5, DATAWIDTH) rf_inst (
         .clk(cpu_clk), 
         .rst(cpu_rst), 

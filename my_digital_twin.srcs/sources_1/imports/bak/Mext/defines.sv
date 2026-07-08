@@ -14,4 +14,5 @@
 
 `define OPCODE_LEN 7
 
-// `define NPC_TEST
+// `define TRACE_TEST
+`define NPC_TEST
