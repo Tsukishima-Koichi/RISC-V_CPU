@@ -13,18 +13,6 @@ module MDU (
 );
 
     wire is_div = funct3[2]; // 0xx: MUL, 1xx: DIV/REM
-    logic [2:0]  op_funct3;
-    logic        op_is_div;
-
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            op_funct3 <= 3'b000;
-            op_is_div <= 1'b0;
-        end else if (start) begin
-            op_funct3 <= funct3;
-            op_is_div <= is_div;
-        end
-    end
 
     // ==========================================
     // 1. DSP 乘法器 (300MHz 终极优化：二级全流水线状态机)
@@ -76,7 +64,7 @@ module MDU (
     // 中间乘法逻辑，Vivado 会自动将前后寄存器吸纳入 DSP 硬核
     (* use_dsp = "yes" *) wire signed [65:0] mul_res_64 = mul_a_reg * mul_b_reg;
 
-    wire [31:0] mul_res = (op_funct3 == 3'b000) ? mul_res_reg[31:0] : mul_res_reg[63:32];
+    wire [31:0] mul_res = (funct3 == 3'b000) ? mul_res_reg[31:0] : mul_res_reg[63:32];
 
     
 
@@ -92,7 +80,6 @@ module MDU (
 
     logic [63:0] shift_reg;
     logic [31:0] div_b;
-    logic [31:0] div_orig_a;
     logic [5:0]  count;
     logic div_sign_quo, div_sign_rem;
     
@@ -117,7 +104,6 @@ module MDU (
                     div_busy <= 1;
                     shift_reg <= {32'b0, abs_a};
                     div_b <= abs_b;
-                    div_orig_a <= a;
                     div_sign_quo <= sign_a ^ sign_b;
                     div_sign_rem <= sign_a;
                     
@@ -155,17 +141,18 @@ module MDU (
     end
     
     wire [31:0] final_quo = (div_b == 0) ? 32'hFFFFFFFF : (div_sign_quo ? -shift_reg[31:0] : shift_reg[31:0]);
-    wire [31:0] final_rem = (div_b == 0) ? div_orig_a : (div_sign_rem ? -shift_reg[63:32] : shift_reg[63:32]);
+    wire [31:0] orig_a    = sign_a ? -shift_reg[31:0] : shift_reg[31:0]; 
+    wire [31:0] final_rem = (div_b == 0) ? orig_a : (div_sign_rem ? -shift_reg[63:32] : shift_reg[63:32]);
 
-    wire [31:0] div_res = (op_funct3[1]) ? final_rem : final_quo;
+    wire [31:0] div_res = (funct3[1]) ? final_rem : final_quo;
     
     // ==========================================
     // 3. 握手信号与结果路由 (修改最后这部分)
     // ==========================================
-    assign result = op_is_div ? div_res : mul_res;
+    assign result = is_div ? div_res : mul_res;
     
     // 彻底切断 busy 环路，仅依赖 done 信号来控制流水线放行！
-    assign busy = op_is_div ? div_busy : 1'b0; 
-    assign done = op_is_div ? div_done : (mul_state == 2'b10);
+    assign busy = is_div ? div_busy : 1'b0; 
+    assign done = is_div ? div_done : (mul_state == 2'b10);
 
 endmodule

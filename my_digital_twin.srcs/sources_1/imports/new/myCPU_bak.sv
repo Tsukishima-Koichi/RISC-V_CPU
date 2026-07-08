@@ -165,12 +165,9 @@ module myCPU (
     wire valid_if2_pred_taken = if2_pred_taken && if2_valid;
 
     // 冲刷逻辑核心更新：赋值给 _net 信号
-    wire redirect_flush = ex_mispredict | ex_take_trap;
-    wire id_ex_redirect_flush = redirect_flush & ~stall_req_mdu;
-    wire load_use_flush_id_ex = hd_flush_ID_EX & ~stall_req_mdu;
-    assign flush_IF1_IF2_net = redirect_flush | (valid_if2_pred_taken & ~stall_IF2);
-    assign flush_IF2_ID_net  = redirect_flush;
-    assign flush_ID_EX_net   = id_ex_redirect_flush | load_use_flush_id_ex;
+    assign flush_IF1_IF2_net = ex_mispredict | ex_take_trap | (valid_if2_pred_taken & ~stall_IF2);
+    assign flush_IF2_ID_net  = ex_mispredict | ex_take_trap;
+    assign flush_ID_EX_net   = ex_mispredict | ex_take_trap | hd_flush_ID_EX;
 
     // 终极 PC 路由逻辑 
     // 必须让异常和预测失败拥有最高优先级，强行打断任何 Stall！
